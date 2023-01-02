@@ -20,3 +20,7 @@
 .mint-nft-button {
   background: rgb(32, 100, 226);
 }
+
+.selected {
+border: thin solid #999;
+}

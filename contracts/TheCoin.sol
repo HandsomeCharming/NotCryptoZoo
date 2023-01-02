@@ -9,7 +9,8 @@ contract TheCoin is ERC20, Ownable {
     uint256 public coinsToBuyOneEgg = 5;
     uint256 public coinSupply  = 100000;
     address public tokenOwner;         // the owner of the token
-    mapping(address => uint256) private _balances;
+    address public nftAddress;
+    mapping(address => uint) public lastUpdateTime;
 
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
         tokenOwner = msg.sender;       // address of the token owner
@@ -41,11 +42,26 @@ contract TheCoin is ERC20, Ownable {
         payable(tokenOwner).transfer(msg.value);
     }
 
-    function buyEgg() public onlyOwner returns (uint) {
+    function setNFTAddress(address _nftAddress) public {
+        require(msg.sender == tokenOwner);
+        nftAddress = _nftAddress;
+    }
+
+    function buyEgg() public returns (uint) {
         require(balanceOf(msg.sender) >= coinsToBuyOneEgg, "Not enough coins");
 
-        _balances[msg.sender] = balanceOf(msg.sender) - coinsToBuyOneEgg;
-        coinSupply = coinSupply - coinsToBuyOneEgg;
-        return NFTCollection(tokenOwner).buyEgg();
+        _transfer(msg.sender, tokenOwner, coinsToBuyOneEgg);
+        return NFTCollection(nftAddress).buyOneEgg(msg.sender);
+    }
+
+    function getPassiveIncome() public {
+        uint curTime = block.timestamp;
+        uint lastTime = lastUpdateTime[msg.sender];
+        require(curTime - lastTime > 10, "Too soon to get passive income again!");
+
+        uint[] memory tokens = NFTCollection(nftAddress).tokensOfOwner(msg.sender);
+        uint tokenSize = tokens.length;
+        _transfer(tokenOwner, msg.sender, tokenSize);
+        lastUpdateTime[msg.sender] = curTime;
     }
 }

@@ -13,13 +13,14 @@ contract NFTCollection is ERC721Enumerable, Ownable {
 
     Counters.Counter private _tokenIds;
     // The max number of NFTs in the collection
-    uint public constant MAX_SUPPLY = 10;
+    uint public constant MAX_SUPPLY = 10000;
     // The mint price for the collection
     uint public constant PRICE = 0.00001 ether;
     // The max number of mints per wallet
     uint public constant MAX_PER_MINT = 5;
     
-    address public tokenOwner;         // the owner of the token
+    address public tokenOwner;         // the owner of the initial tokens
+    address public coinAddress;
 
     uint nonce = 0;
 
@@ -28,6 +29,11 @@ contract NFTCollection is ERC721Enumerable, Ownable {
     constructor(string memory baseURI, string memory name, string memory symbol) ERC721(name, symbol) {
         setBaseURI(baseURI);
         tokenOwner = msg.sender;       // address of the token owner
+    }
+
+    function setCoinAddress(address _coinAddress) public {
+        require(msg.sender == tokenOwner, "Owner only");
+        coinAddress = _coinAddress;
     }
 
     function getOwnerAddress() public view returns (address) {
@@ -47,16 +53,71 @@ contract NFTCollection is ERC721Enumerable, Ownable {
         return uint(keccak256(abi.encodePacked(nonce)));
     }
 
-    function buyEgg() external returns (uint) {
+    function getNewTokenId(uint tokenNum) internal returns (uint) {
         uint newTokenID = _tokenIds.current();
-        require(msg.sender == tokenOwner);
-        require(newTokenID <= MAX_SUPPLY - 1, "This collection is sold out!");
-
         newTokenID <<= 16;
+        newTokenID += tokenNum;
+        return newTokenID;
+    }
 
-        _safeMint(msg.sender, newTokenID);
+    function buyOneEgg(address buyer) external returns (uint) {
+        require(msg.sender == coinAddress, "Sender is not coin contract address");
+        uint tokenCounts = _tokenIds.current();
+        require(tokenCounts <= MAX_SUPPLY - 1, "This collection is sold out!");
+
+        uint newTokenID = getNewTokenId(0);
+
+        _safeMint(buyer, newTokenID);
         _tokenIds.increment();
         return newTokenID;
+    }
+
+    // return new token id
+    function hatchEgg(uint tokenId) public returns (uint) {
+        address owner = ownerOf(tokenId);
+        require(msg.sender == owner, "Is not owner");
+
+        uint tokenNum = tokenId & 0xf;
+        require(tokenNum == 0, "Is not egg");
+        uint newTokenNum = random() % 3 + 1;
+        uint newTokenId = getNewTokenId(newTokenNum);
+
+        _safeMint(msg.sender, newTokenId);
+        transferFrom(msg.sender, tokenOwner, tokenId);
+        _tokenIds.increment();
+        return newTokenId;
+    }
+
+    function yeetAnimal(uint tokenId) public {
+        transferFrom(msg.sender, tokenOwner, tokenId);
+    }
+
+    function getBreededTokenNum(uint tokenNum1, uint tokenNum2) internal returns (uint) {
+        if (tokenNum1 + tokenNum2 <= 3) {
+            return 4;
+        }
+        if (tokenNum1 + tokenNum2 == 5) {
+            return 6;
+        }
+        return 5;
+    }
+
+    function breed(uint tokenId1, uint tokenId2) public returns (uint) {
+        address owner1 = ownerOf(tokenId1);
+        address owner2 = ownerOf(tokenId2);
+        require(msg.sender == owner1, "Is not owner");
+        require(owner1 == owner2, "You don't own both animals");
+
+        uint tokenNum1 = tokenId1 & 0xf;
+        uint tokenNum2 = tokenId2 & 0xf;
+        require(tokenNum1 != 0 && tokenNum2 != 0, "Can't breed egg!");
+        require(tokenNum1 != tokenNum2, "Can't breed same animal!");
+        uint newTokenNum = getBreededTokenNum(tokenNum1, tokenNum2);
+        uint newTokenId = getNewTokenId(newTokenNum);
+
+        _safeMint(msg.sender, newTokenId);
+        _tokenIds.increment();
+        return newTokenId;
     }
 
     function mintNFTs(uint _count) public payable {
@@ -81,7 +142,16 @@ contract NFTCollection is ERC721Enumerable, Ownable {
     }
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        return "tokenId";
+        uint tokenNum = tokenId & 0xf;
+        require(tokenNum >= 0 && tokenNum < 7, "Token invalid!");
+        if (tokenNum == 0) return "https://drive.google.com/uc?id=1Z7qoht6P2jMedlCsfZB9zCFj80l2bnbr";
+        if (tokenNum == 1) return "https://drive.google.com/uc?id=1VELnxUlBJWaiBOnfz1HAGqBJfF8pG6j2";
+        if (tokenNum == 2) return "https://drive.google.com/uc?id=1BIfI2hx2vjgpjCwSN3NK96IVpd6lXAY8";
+        if (tokenNum == 3) return "https://drive.google.com/uc?id=1dLG8JxIx3_SqNek9IRTslD_JZdn1apcZ";
+        if (tokenNum == 4) return "https://drive.google.com/uc?id=1Mt6cUjPpRnaQyG2A-UfrGTOTjgJXkqVL";
+        if (tokenNum == 5) return "https://drive.google.com/uc?id=1ktvo8jKmT4DMaE6oiJ4QS7easxAtw5RV";
+        if (tokenNum == 6) return "https://drive.google.com/uc?id=1dhmQFirSmMO4aIWMRbBLBoey_bxoVZhL";
+        return "notEgg";
     }
     
     // Returns the ids of the NFTs owned by the wallet address
